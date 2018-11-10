@@ -1,0 +1,78 @@
+File Mapping Object:
+ url: https://docs.microsoft.com/en-us/windows/desktop/Memory/file-mapping
+ api: 
+  - CreateFile
+  - CreateFileMapping
+  - MapViewOfFile
+  - UnmapViewOfFile
+  - GetLastError
+  - GetSystemInfo
+  - CloseHandle
+  - FlushViewOfFile
+  - VirtualProtect
+ struct: [SYSTEM_INFO]
+ errorcode: [NO_ERROR,ERROR_ALREADY_EXISTS,ERROR_FILE_INVALID]
+ flag: [GENERIC_READ,GENERIC_WRITE,PAGE_READWRITE]
+ param: [dwMaximumSizeHigh,dwMaximumSizeLow]
+ constraint:
+  - offset is multiple of file allocation granularity
+ notion:
+  - This 'file mapping object' is the size of the portion of the 'file' you want to view plus the offset into the 'file'.
+  - The 'file mapping object' can consist of all or only part of the 'file'.
+  - A 'file view' can consist of all or only part of the 'file mapping object'.
+  - A 'file view' must start at an offset into the file that is a multiple of the 'file allocation granularity'.
+  - A 'process' manipulates the 'file' through the 'file view'.
+  - When multiple 'processes' use the same 'file mapping object' to create 'views' for a local 'file', the data is coherent.
+  - To map the data from a 'file' to the 'virtual memory' of a 'process', you must create a 'view' of the 'file'.
+  - A file view size must be smaller than the file mapping object size.
+  - Multiple processes can also use memory-mapped files to share data.
+  - Misinvariance shall cause CreateFileMapping to fail
+ formula:
+  - dwFileMapStart = (FILE_MAP_START / dwSysGran) * dwSysGran;
+  - dwMapViewSize = (FILE_MAP_START % dwSysGran) + BUFFSIZE;
+
+Anonymous Pipe: 
+ url: 
+  - https://www.installsetupconfig.com/win32programming/windowsthreadsprocessapis7_18.html
+  - https://docs.microsoft.com/en-us/windows/desktop/ProcThread/creating-a-child-process-with-redirected-input-and-output
+ notion:
+  - Client/server communication
+  - Read is a tblocking call
+  - Write is a pblocking call
+  - Pipe buffer affects write pblock
+  - Pipe buffer size is fixed
+  - Stream of bytes, no distinction if wither coming the next write. 
+  - Parent must close its handle to the write end of the pipe so that its 'ReadFile will return zero' when child closes it's end
+  - Careful setup in parent/child inheritance so that 'ReadFile will return zero'
+ api: [CreatePipe,DuplicateHandle,ReadFile,WriteFile,CloseHandle,GetStdHandle,SetStdHandle]
+ 
+Named Pipe:
+ notion:
+  - one-way or duplex pipe for communication between the pipe server and one or more pipe clients
+  - the term pipe server refers to a process that creates a named pipe
+  - Can work between processes on different computers!
+  - pipe name string can be up to 256 characters long and case insensitive
+  - The clients must know the pipe name at compile time
+  - Access rights must be compatible with access mode
+  - CreateFile is always in byte-read mode initially
+ api: 
+  - CreateNamedPipe
+  - ConnectNamedPipe
+  - CreateFile
+  - CallNamedPipe
+  - WaitNamedPipe
+  - SetNamedPipeHandleState
+  - FlushFileBuffers
+  - DisconnectNamedPipe
+  - CloseHandle
+  - GetNamedPipeInfo
+  - GetNamedPipeHandleState
+  - SetNamedPipeHandleState
+  - ReadFile
+  - WriteFile
+  - TransactNamedPipe
+ format: \\ServerName\pipe\PipeName
+ access mode: [PIPE_ACCESS_INBOUND,PIPE_ACCESS_OUTBOUND,PIPE_ACCESS_DUPLEX]
+ access right: [GENERIC_READ,GENERIC_WRITE,GENERIC_READ | GENERIC_WRITE]
+ mode: [overlapped,write-thru]
+ type: [byte-type,message-type]
