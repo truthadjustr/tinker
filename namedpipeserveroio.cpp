@@ -1,7 +1,6 @@
 #include <windows.h> 
 #include <stdio.h>
 #include <tchar.h>
-#include <strsafe.h>
  
 #define CONNECTING_STATE 0 
 #define READING_STATE 1 
@@ -29,12 +28,18 @@ VOID GetAnswerToRequest(LPPIPEINST);
  
 PIPEINST Pipe[INSTANCES]; 
 HANDLE hEvents[INSTANCES]; 
- 
+
+#ifdef _MSC_VER
+#include <strsafe.h>
 int _tmain(VOID) 
+#else 
+#define _tprintf printf
+int main (int argc, char *argv[])
+#endif
 { 
    DWORD i, dwWait, cbRet, dwErr; 
    BOOL fSuccess; 
-   LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
+   LPCTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
  
 // The initial loop creates several instances of a named pipe 
 // along with an event object for each instance.  An 
@@ -321,6 +326,10 @@ BOOL ConnectToNewClient(HANDLE hPipe, LPOVERLAPPED lpo)
 VOID GetAnswerToRequest(LPPIPEINST pipe)
 {
    _tprintf( TEXT("[%d] %s\n"), pipe->hPipeInst, pipe->chRequest);
+#ifdef _MSC_VER
    StringCchCopy( pipe->chReply, BUFSIZE, TEXT("Default answer from server") );
+#else
+   strncpy (pipe->chReply, TEXT("Default answer from server"), BUFSIZE);
+#endif
    pipe->cbToWrite = (lstrlen(pipe->chReply)+1)*sizeof(TCHAR);
 }
