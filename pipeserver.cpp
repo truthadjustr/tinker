@@ -1,19 +1,24 @@
 #include <windows.h> 
 #include <stdio.h> 
 #include <tchar.h>
-#include <strsafe.h>
 
 #define BUFSIZE 512
  
 DWORD WINAPI InstanceThread(LPVOID); 
 VOID GetAnswerToRequest(LPTSTR, LPTSTR, LPDWORD); 
- 
+
+#ifdef _MSC_VER
+#include <strsafe.h>
 int _tmain(VOID) 
+#else
+#define _tprintf printf
+int main (int argc, char *argv[])
+#endif
 { 
    BOOL   fConnected = FALSE; 
    DWORD  dwThreadId = 0; 
    HANDLE hPipe = INVALID_HANDLE_VALUE, hThread = NULL; 
-   LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
+   LPCTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
  
 // The main loop creates an instance of the named pipe and 
 // then waits for a client to connect to it. When the client 
@@ -199,8 +204,12 @@ VOID GetAnswerToRequest( LPTSTR pchRequest,
 {
     _tprintf( TEXT("Client Request String:\"%s\"\n"), pchRequest );
 
+#ifdef _MSC_VER_
     // Check the outgoing message to make sure it's not too long for the buffer.
     if (FAILED(StringCchCopy( pchReply, BUFSIZE, TEXT("default answer from server") )))
+#else
+    if (pchReply != strncpy( pchReply, TEXT("default answer from server"), BUFSIZE))
+#endif
     {
         *pchBytes = 0;
         pchReply[0] = 0;

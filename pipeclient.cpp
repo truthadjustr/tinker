@@ -1,18 +1,24 @@
 #include <windows.h> 
 #include <stdio.h>
-#include <conio.h>
 #include <tchar.h>
 
 #define BUFSIZE 512
- 
+
+#ifdef _MSC_VER
+#include <conio.h>
 int _tmain(int argc, TCHAR *argv[]) 
+#else
+extern "C" void _getch(void);
+#define _tprintf printf
+int main(int argc, char *argv[]) 
+#endif
 { 
    HANDLE hPipe; 
-   LPTSTR lpvMessage=TEXT("Default message from client."); 
+   LPCTSTR lpvMessage=TEXT("Default message from client."); 
    TCHAR  chBuf[BUFSIZE]; 
    BOOL   fSuccess = FALSE; 
    DWORD  cbRead, cbToWrite, cbWritten, dwMode; 
-   LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
+   LPCTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
 
    if( argc > 1 )
       lpvMessage = argv[1];

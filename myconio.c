@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#include <windows.h>
+
 /* Generate object file: gcc -c myconio.c
  * In your C++ code, declare functions as:
  *
@@ -55,4 +57,9 @@ int getche(void)
     ch = getchar();
     tcsetattr( STDIN_FILENO, TCSANOW, &oldattr );
     return ch;
+}
+
+void _getch(void) 
+{
+    getch();
 }
