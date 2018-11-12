@@ -1,6 +1,7 @@
 #include <windows.h> 
 #include <stdio.h>
 #include <tchar.h>
+#include <assert.h>
 
 //#define BUFSIZE 512
 #define BUFSIZE 5
@@ -18,7 +19,7 @@ int main(int argc, char *argv[])
    LPCTSTR lpvMessage=TEXT("Default message from client."); 
    TCHAR  chBuf[BUFSIZE]; 
    BOOL   fSuccess = FALSE; 
-   DWORD  cbRead, cbToWrite, cbWritten, dwMode; 
+   DWORD  cbRead, cbToWrite, cbWritten, dwMode, index; 
    LPCTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
 
    if( argc > 1 )
@@ -79,12 +80,20 @@ int main(int argc, char *argv[])
    cbToWrite = (lstrlen(lpvMessage)+1)*sizeof(TCHAR);
    _tprintf( TEXT("Sending %d byte message: \"%s\"\n"), cbToWrite, lpvMessage); 
 
-   fSuccess = WriteFile( 
-      hPipe,                  // pipe handle 
-      lpvMessage,             // message 
-      cbToWrite,              // message length 
-      &cbWritten,             // bytes written 
-      NULL);                  // not overlapped 
+   cbWritten = 0;
+   index = cbWritten;
+
+   do {
+	   fSuccess = WriteFile(
+		   hPipe,                  // pipe handle 
+		   lpvMessage + index,             // message 
+		   cbToWrite - index,              // message length 
+		   &cbWritten,             // bytes written 
+		   NULL);                  // not overlapped 
+	   index += cbWritten;
+   } while (!fSuccess);
+
+   assert(cbToWrite == index);
 
    if ( ! fSuccess) 
    {
@@ -94,7 +103,7 @@ int main(int argc, char *argv[])
 
    printf("\nMessage sent to server, receiving reply as follows:\n");
    cbRead = 0;
-   int index = cbRead;
+   index = cbRead;
    do 
    { 
    // Read from the pipe. 
