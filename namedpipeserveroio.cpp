@@ -86,9 +86,7 @@ int main (int argc, char *argv[])
  
    // Call the subroutine to connect to the new client
  
-      Pipe[i].fPendingIO = ConnectToNewClient( 
-         Pipe[i].hPipeInst, 
-         &Pipe[i].oOverlap); 
+      Pipe[i].fPendingIO = ConnectToNewClient(Pipe[i].hPipeInst, &Pipe[i].oOverlap); 
  
       Pipe[i].dwState = Pipe[i].fPendingIO ? 
          CONNECTING_STATE : // still connecting 
@@ -271,9 +269,7 @@ VOID DisconnectAndReconnect(DWORD i)
  
 // Call a subroutine to connect to the new client. 
  
-   Pipe[i].fPendingIO = ConnectToNewClient( 
-      Pipe[i].hPipeInst, 
-      &Pipe[i].oOverlap); 
+   Pipe[i].fPendingIO = ConnectToNewClient( Pipe[i].hPipeInst, &Pipe[i].oOverlap); 
  
    Pipe[i].dwState = Pipe[i].fPendingIO ? 
       CONNECTING_STATE : // still connecting 
@@ -325,7 +321,7 @@ BOOL ConnectToNewClient(HANDLE hPipe, LPOVERLAPPED lpo)
 
 VOID GetAnswerToRequest(LPPIPEINST pipe)
 {
-   _tprintf( TEXT("[%d] %s\n"), pipe->hPipeInst, pipe->chRequest);
+   _tprintf( TEXT("[%d] %s\n"), pipe->hPipeInst, pipe->chRequest); // %s able to print? so chRequest is null delimited
 #ifdef _MSC_VER
    StringCchCopy( pipe->chReply, BUFSIZE, TEXT("Default answer from server") );
 #else

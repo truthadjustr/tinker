@@ -1,5 +1,6 @@
 *.exe
 *.o
+*.swp
 Debug/
 Release/
 .vs/

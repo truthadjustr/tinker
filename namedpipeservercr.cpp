@@ -1,7 +1,8 @@
+/* named pipe server using completion routines */
+
 #include <windows.h> 
 #include <stdio.h>
 #include <tchar.h>
-#include <strsafe.h>
 
 #define PIPE_TIMEOUT 5000
 #define BUFSIZE 4096
@@ -25,8 +26,14 @@ VOID WINAPI CompletedWriteRoutine(DWORD, DWORD, LPOVERLAPPED);
 VOID WINAPI CompletedReadRoutine(DWORD, DWORD, LPOVERLAPPED); 
  
 HANDLE hPipe; 
- 
+
+#ifdef _MSC_VER
+#include <strsafe.h>
 int _tmain(VOID) 
+#else
+#define _tprintf printf
+int main (int argc, char *argv[]) 
+#endif
 { 
    HANDLE hConnectEvent; 
    OVERLAPPED oConnect; 
@@ -229,7 +236,7 @@ VOID DisconnectAndClose(LPPIPEINST lpPipeInst)
  
 BOOL CreateAndConnectInstance(LPOVERLAPPED lpoOverlap) 
 { 
-   LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
+   LPCTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
  
    hPipe = CreateNamedPipe( 
       lpszPipename,             // pipe name 
@@ -294,6 +301,10 @@ BOOL ConnectToNewClient(HANDLE hPipe, LPOVERLAPPED lpo)
 VOID GetAnswerToRequest(LPPIPEINST pipe)
 {
    _tprintf( TEXT("[%d] %s\n"), pipe->hPipeInst, pipe->chRequest);
+#ifdef _MSC_VER
    StringCchCopy( pipe->chReply, BUFSIZE, TEXT("Default answer from server") );
+#else
+   strncpy( pipe->chReply, TEXT("Default answer from server"),BUFSIZE );
+#endif
    pipe->cbToWrite = (lstrlen(pipe->chReply)+1)*sizeof(TCHAR);
 }

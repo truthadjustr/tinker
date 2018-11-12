@@ -76,3 +76,30 @@ Named Pipe:
  access right: [GENERIC_READ,GENERIC_WRITE,GENERIC_READ | GENERIC_WRITE]
  mode: [overlapped,write-thru]
  type: [byte-type,message-type]
+ ioflow: [synchronous,asynchronous]
+
+Overlapped I/O:
+ api: GetOverlappedResult
+ flag: FILE_FLAG_OVERLAPPED
+ struct: OVERLAPPED
+ notion:
+  - Must associate one overlap structure per I/O operation
+ example: |
+  OVERLAPPED o;
+  memset (&o, 0, sizeof(o));
+  o.Offset = 4096;
+  o.hEvent = CreateEvent (NULL,TRUE,FALSE,NULL);
+
+  HANDLE file_handle = CreateFile (
+    "abc.def", 
+    GENERIC_READ | GENERIC_WRITE, 
+    0, 
+    NULL, 
+    OPEN_EXISTING, 
+    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 
+    NULL);
+
+  DWORD error_cc = WriteFile (file_handle, buff, buflen, &o);
+  if (error_cc == FALSE && GetLastError() != ERROR_IO_PENDING) {
+  ...
+
