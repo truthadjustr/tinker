@@ -2,7 +2,8 @@
 #include <stdio.h>
 #include <tchar.h>
 
-#define BUFSIZE 512
+//#define BUFSIZE 512
+#define BUFSIZE 5
 
 #ifdef _MSC_VER
 #include <conio.h>
@@ -92,22 +93,23 @@ int main(int argc, char *argv[])
    }
 
    printf("\nMessage sent to server, receiving reply as follows:\n");
- 
+   cbRead = 0;
+   int index = cbRead;
    do 
    { 
    // Read from the pipe. 
  
       fSuccess = ReadFile( 
          hPipe,    // pipe handle 
-         chBuf,    // buffer to receive reply 
+         chBuf + index,    // buffer to receive reply 
          BUFSIZE*sizeof(TCHAR),  // size of buffer 
          &cbRead,  // number of bytes read 
          NULL);    // not overlapped 
- 
+	  index += cbRead;
       if ( ! fSuccess && GetLastError() != ERROR_MORE_DATA )
          break; 
  
-      _tprintf( TEXT("\"%s\"\n"), chBuf ); 
+      if (fSuccess) _tprintf( TEXT("\"%s\"\n"), chBuf ); 
    } while ( ! fSuccess);  // repeat loop if ERROR_MORE_DATA 
 
    if ( ! fSuccess)
