@@ -39,7 +39,7 @@ int main (int argc, char *argv[])
    OVERLAPPED oConnect; 
    LPPIPEINST lpPipeInst; 
    DWORD dwWait, cbRet; 
-   BOOL fSuccess, fPendingIO; 
+   BOOL fSuccess, fPendingIO = FALSE; 
  
 // Create one event object for the connect operation. 
  

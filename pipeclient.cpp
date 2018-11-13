@@ -4,7 +4,7 @@
 #include <assert.h>
 
 //#define BUFSIZE 512
-#define BUFSIZE 5
+#define BUFSIZE 7
 
 #ifdef _MSC_VER
 #include <conio.h>
@@ -16,10 +16,10 @@ int main(int argc, char *argv[])
 #endif
 { 
    HANDLE hPipe; 
-   LPCTSTR lpvMessage=TEXT("Default message from client."); 
-   TCHAR  chBuf[BUFSIZE]; 
+   LPCTSTR lpvMessage=TEXT("Dexxxlt message from client."); 
+   TCHAR  chBuf[45]; 
    BOOL   fSuccess = FALSE; 
-   DWORD  cbRead, cbToWrite, cbWritten, dwMode, index; 
+   DWORD  cbRead, cbToWrite, cbWritten, dwMode, index,dwErr; 
    LPCTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
 
    if( argc > 1 )
@@ -38,21 +38,24 @@ int main(int argc, char *argv[])
          OPEN_EXISTING,  // opens existing pipe 
          0,              // default attributes 
          NULL);          // no template file 
- 
+
+	  dwErr = GetLastError();
    // Break if the pipe handle is valid. 
  
-      if (hPipe != INVALID_HANDLE_VALUE) 
+      if (hPipe != INVALID_HANDLE_VALUE) {
          break; 
+      } 
  
       // Exit if an error other than ERROR_PIPE_BUSY occurs. 
  
-      if (GetLastError() != ERROR_PIPE_BUSY) 
+      if (dwErr != ERROR_PIPE_BUSY) 
       {
          _tprintf( TEXT("Could not open pipe. GLE=%d\n"), GetLastError() ); 
          return -1;
       }
  
       // All pipe instances are busy, so wait for 20 seconds. 
+	  printf("All pipe instances are busy, so wait for 20 seconds.\n");
  
       if ( ! WaitNamedPipe(lpszPipename, 20000)) 
       { 
@@ -64,6 +67,7 @@ int main(int argc, char *argv[])
 // The pipe connected; change to message-read mode. 
  
    dwMode = PIPE_READMODE_MESSAGE; 
+   //dwMode = PIPE_READMODE_BYTE; 
    fSuccess = SetNamedPipeHandleState( 
       hPipe,    // pipe handle 
       &dwMode,  // new pipe mode 
@@ -90,7 +94,11 @@ int main(int argc, char *argv[])
 		   cbToWrite - index,              // message length 
 		   &cbWritten,             // bytes written 
 		   NULL);                  // not overlapped 
+	
+	   dwErr = GetLastError();
+	   if (dwErr == ERROR_PIPE_NOT_CONNECTED) break;
 	   index += cbWritten;
+
    } while (!fSuccess);
 
    assert(cbToWrite == index);
@@ -114,12 +122,20 @@ int main(int argc, char *argv[])
          BUFSIZE*sizeof(TCHAR),  // size of buffer 
          &cbRead,  // number of bytes read 
          NULL);    // not overlapped 
+
 	  index += cbRead;
-      if ( ! fSuccess && GetLastError() != ERROR_MORE_DATA )
+	  dwErr = GetLastError();
+
+      if ( ! fSuccess && dwErr != ERROR_MORE_DATA )
          break; 
  
       if (fSuccess) _tprintf( TEXT("\"%s\"\n"), chBuf ); 
-   } while ( ! fSuccess);  // repeat loop if ERROR_MORE_DATA 
+#ifndef _WIN32
+      printf("pausing read 5 bytes, press enter to read next 5 bytes\n");
+      _getch();
+#endif
+   //} while ( ! fSuccess);  // repeat loop if ERROR_MORE_DATA 
+   } while ( fSuccess); 
 
    if ( ! fSuccess)
    {
@@ -127,9 +143,11 @@ int main(int argc, char *argv[])
       return -1;
    }
 
+#ifndef _WIN32
    printf("\n<End of message, press ENTER to terminate connection and exit>");
    _getch();
- 
+#endif 
+
    CloseHandle(hPipe); 
  
    return 0; 

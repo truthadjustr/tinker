@@ -7,20 +7,28 @@
 #define WRITING_STATE 2 
 #define INSTANCES 4 
 #define PIPE_TIMEOUT 5000
-#define BUFSIZE 4096
+//#define BUFSIZE 4096
+#define BUFSIZE 5
+#define BUFSIZE2 50
  
 typedef struct 
 { 
    OVERLAPPED oOverlap; 
    HANDLE hPipeInst; 
-   TCHAR chRequest[BUFSIZE]; 
+   //TCHAR chRequest[BUFSIZE]; // these are only chunks!
    DWORD cbRead;
-   TCHAR chReply[BUFSIZE];
+   TCHAR chReply[BUFSIZE2];   
    DWORD cbToWrite; 
+   TCHAR req[64];  // store here data received from client
+   TCHAR resp[64]; // store here data to send to client
+   int req_idx;
+   DWORD nwritten;
+   int totalwritten;
+   DWORD cbRet;
    DWORD dwState; 
    BOOL fPendingIO; 
+   TCHAR chRequest[BUFSIZE]; // these are only chunks!
 } PIPEINST, *LPPIPEINST; 
- 
  
 VOID DisconnectAndReconnect(DWORD); 
 BOOL ConnectToNewClient(HANDLE, LPOVERLAPPED); 
@@ -70,13 +78,20 @@ int main (int argc, char *argv[])
          PIPE_ACCESS_DUPLEX |     // read/write access 
          FILE_FLAG_OVERLAPPED,    // overlapped mode 
          PIPE_TYPE_MESSAGE |      // message-type pipe 
+		  //PIPE_TYPE_BYTE |
          PIPE_READMODE_MESSAGE |  // message-read mode 
+         //PIPE_READMODE_BYTE |  // byte-read mode 
          PIPE_WAIT,               // blocking mode 
          INSTANCES,               // number of instances 
-         BUFSIZE*sizeof(TCHAR),   // output buffer size 
-         BUFSIZE*sizeof(TCHAR),   // input buffer size 
+         BUFSIZE*sizeof(TCHAR),   // output buffer size    !!!!!!
+         BUFSIZE*sizeof(TCHAR),   // input buffer size     !!!!!! 
          PIPE_TIMEOUT,            // client time-out 
          NULL);                   // default security attributes 
+
+	  dwErr = GetLastError();
+	  if (dwErr == ERROR_ALREADY_EXISTS) {
+		  printf("pipe: ERROR_ALREADY_EXISTS\n");
+	  }
 
       if (Pipe[i].hPipeInst == INVALID_HANDLE_VALUE) 
       {
@@ -121,9 +136,11 @@ int main (int argc, char *argv[])
          fSuccess = GetOverlappedResult( 
             Pipe[i].hPipeInst, // handle to pipe 
             &Pipe[i].oOverlap, // OVERLAPPED structure 
-            &cbRet,            // bytes transferred 
+            &Pipe[i].cbRet /* &cbRet */,            // bytes transferred 
             FALSE);            // do not wait 
- 
+
+		 dwErr = GetLastError();
+
          switch (Pipe[i].dwState) 
          { 
          // Pending connect operation 
@@ -138,18 +155,25 @@ int main (int argc, char *argv[])
  
          // Pending read operation 
             case READING_STATE: 
-               if (! fSuccess || cbRet == 0) 
-               { 
-                  DisconnectAndReconnect(i); 
+				if (!fSuccess || /* cbRet */ Pipe[i].cbRet == 0)
+				{
+					if (dwErr == ERROR_MORE_DATA) {
+						printf("more data to read...\n");
+						break;
+					}
+					else {
+						DisconnectAndReconnect(i);
+					}
                   continue; 
                }
-               Pipe[i].cbRead = cbRet;
+
+               Pipe[i].cbRead = /* cbRet */ Pipe[i].cbRet;
                Pipe[i].dwState = WRITING_STATE; 
                break; 
  
          // Pending write operation 
             case WRITING_STATE: 
-               if (! fSuccess || cbRet != Pipe[i].cbToWrite) 
+               if (! fSuccess || /* cbRet */ Pipe[i].cbRet != Pipe[i].cbToWrite) 
                { 
                   DisconnectAndReconnect(i); 
                   continue; 
@@ -174,30 +198,47 @@ int main (int argc, char *argv[])
       // and is ready to read a request from the client. 
  
          case READING_STATE: 
-            fSuccess = ReadFile( 
-               Pipe[i].hPipeInst, 
-               Pipe[i].chRequest, 
-               BUFSIZE*sizeof(TCHAR), 
+			 if (Pipe[i].cbRet > 0 && Pipe[i].req_idx == 0) {
+				 memcpy(Pipe[i].req + Pipe[i].req_idx, Pipe[i].chRequest, Pipe[i].cbRet);
+				 Pipe[i].req_idx += Pipe[i].cbRet;
+			 }
+
+			 fSuccess = ReadFile(
+				 Pipe[i].hPipeInst,
+				 Pipe[i].chRequest,
+				 BUFSIZE*sizeof(TCHAR), /* #bytes to read */
                &Pipe[i].cbRead, 
                &Pipe[i].oOverlap); 
  
+            dwErr = GetLastError(); 
          // The read operation completed successfully. 
  
             if (fSuccess && Pipe[i].cbRead != 0) 
             { 
                Pipe[i].fPendingIO = FALSE; 
                Pipe[i].dwState = WRITING_STATE; 
+				memcpy(Pipe[i].req + Pipe[i].req_idx ,Pipe[i].chRequest,Pipe[i].cbRead);
+				Pipe[i].req_idx += Pipe[i].cbRead;
                continue; 
             } 
  
          // The read operation is still pending. 
  
-            dwErr = GetLastError(); 
             if (! fSuccess && (dwErr == ERROR_IO_PENDING)) 
             { 
                Pipe[i].fPendingIO = TRUE; 
                continue; 
             } 
+
+			if (!fSuccess && (dwErr == ERROR_MORE_DATA)) {
+				//printf("ERROR_MORE_DATA");
+				Pipe[i].fPendingIO = FALSE; 
+				Pipe[i].dwState = READING_STATE; 
+				memcpy(Pipe[i].req + Pipe[i].req_idx ,Pipe[i].chRequest,BUFSIZE * sizeof(TCHAR));
+				Pipe[i].req_idx += BUFSIZE * sizeof(TCHAR);
+				continue;
+			}
+
  
          // An error occurred; disconnect from the client. 
  
@@ -210,32 +251,50 @@ int main (int argc, char *argv[])
  
          case WRITING_STATE: 
             GetAnswerToRequest(&Pipe[i]); 
- 
-            fSuccess = WriteFile( 
-               Pipe[i].hPipeInst, 
-               Pipe[i].chReply, 
-               Pipe[i].cbToWrite, 
-               &cbRet, 
-               &Pipe[i].oOverlap); 
- 
+			// doing a loop here would nullify the point of overlapped-io?!?? 
+			// i dunno
+
+				fSuccess = WriteFile( /* the receiver can only receive 5 bytes at a time */
+					Pipe[i].hPipeInst,
+					Pipe[i].chReply + Pipe[i].totalwritten,
+					Pipe[i].cbToWrite,
+					// &cbRet, cbRet is global and could get corrupted?
+					&Pipe[i].nwritten, /* this won't get updated if fSuccess is FALSE */
+					&Pipe[i].oOverlap);
+			
+				Pipe[i].totalwritten += Pipe[i].nwritten;
+				dwErr = GetLastError(); 
+
          // The write operation completed successfully. 
- 
-            if (fSuccess && cbRet == Pipe[i].cbToWrite) 
+			//ERROR_NO_DATA => 232
+
+				if (fSuccess && Pipe[i].totalwritten < 49) continue;
+
+            //if (fSuccess && cbRet == Pipe[i].cbToWrite) 
+            if (fSuccess && Pipe[i].totalwritten == Pipe[i].cbToWrite) 
             { 
                Pipe[i].fPendingIO = FALSE; 
                Pipe[i].dwState = READING_STATE; 
                continue; 
             } 
+
+			if (!fSuccess && dwErr == ERROR_IO_PENDING) {
+				Pipe[i].fPendingIO = FALSE;
+				Pipe[i].dwState = READING_STATE;
+				continue;
+			}
  
+
          // The write operation is still pending. 
- 
+			/*
             dwErr = GetLastError(); 
             if (! fSuccess && (dwErr == ERROR_IO_PENDING)) 
             { 
-               Pipe[i].fPendingIO = TRUE; 
+				Pipe[i].totalwritten += Pipe[i].oOverlap.InternalHigh;
+			    Pipe[i].fPendingIO = FALSE;
                continue; 
             } 
- 
+			*/ 
          // An error occurred; disconnect from the client. 
  
             DisconnectAndReconnect(i); 
@@ -321,11 +380,13 @@ BOOL ConnectToNewClient(HANDLE hPipe, LPOVERLAPPED lpo)
 
 VOID GetAnswerToRequest(LPPIPEINST pipe)
 {
-   _tprintf( TEXT("[%d] %s\n"), pipe->hPipeInst, pipe->chRequest); // %s able to print? so chRequest is null delimited
+   //_tprintf( TEXT("[%d] %s\n"), pipe->hPipeInst, pipe->chRequest); // %s able to print? so chRequest is null delimited
+   _tprintf( TEXT("[%d] %s\n"), pipe->hPipeInst, pipe->req); // %s able to print? so chRequest is null delimited
 #ifdef _MSC_VER
-   StringCchCopy( pipe->chReply, BUFSIZE, TEXT("Default answer from server") );
+   StringCchCopy( pipe->chReply, BUFSIZE2, TEXT("Default answer from server") );
 #else
-   strncpy (pipe->chReply, TEXT("Default answer from server"), BUFSIZE);
+   strncpy (pipe->chReply, TEXT("Default answer from server"), BUFSIZE2);
 #endif
-   pipe->cbToWrite = (lstrlen(pipe->chReply)+1)*sizeof(TCHAR);
+   //pipe->cbToWrite = (lstrlen(pipe->chReply)+1)*sizeof(TCHAR);
+   pipe->cbToWrite = 3;
 }
